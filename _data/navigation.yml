@@ -17,10 +17,10 @@ links:
       url: /pose-estimation/
     - title: GeoAI
       url: /geo-ai/
-- title: 제품
-  children:
-  - title: 카페 맞춤형 AI 생두 분류기
-    url: /coffee/
+#- title: 제품
+  #children:
+  #- title: 카페 맞춤형 AI 생두 분류기
+  #  url: /coffee/
   # - title: 실시간 작업자 충돌위험 감지 단말기
   #   url: /monoeye-chdet/
   url: /geo-ai/
