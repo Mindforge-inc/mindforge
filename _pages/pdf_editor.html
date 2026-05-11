@@ -1,0 +1,791 @@
+---
+layout: null
+title: PDF 페이지 편집기
+permalink: /pdf-editor/
+---
+
+
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 580px;
+    font-family: var(--font-sans);
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--color-background-primary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    flex-wrap: wrap;
+  }
+
+  .toolbar-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 4px;
+  }
+
+  .toolbar-sep {
+    width: 0.5px;
+    height: 20px;
+    background: var(--color-border-tertiary);
+    margin: 0 2px;
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    font-size: 12px;
+    font-weight: 400;
+    cursor: pointer;
+    border-radius: var(--border-radius-md);
+    border: 0.5px solid var(--color-border-secondary);
+    background: transparent;
+    color: var(--color-text-primary);
+    transition: background 0.12s;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--color-background-secondary);
+  }
+
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn.danger {
+    color: var(--color-text-danger);
+    border-color: var(--color-border-danger);
+  }
+
+  .btn.danger:hover {
+    background: var(--color-background-danger);
+  }
+
+  .btn.primary {
+    background: var(--color-text-primary);
+    color: var(--color-background-primary);
+    border-color: transparent;
+  }
+
+  .btn.primary:hover {
+    opacity: 0.82;
+  }
+
+  .btn:disabled {
+    opacity: 0.32;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .upload-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 52px 24px;
+    gap: 10px;
+    border: 1.5px dashed var(--color-border-secondary);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
+    background: var(--color-background-secondary);
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    transition: background 0.12s;
+  }
+
+  .upload-zone:hover,
+  .upload-zone.drag-over {
+    background: var(--color-background-tertiary);
+  }
+
+  .upload-zone i {
+    font-size: 38px;
+    opacity: 0.35;
+  }
+
+  .upload-zone p {
+    font-size: 14px;
+  }
+
+  .upload-zone small {
+    font-size: 12px;
+    opacity: 0.55;
+  }
+
+  /* 워크스페이스 드롭 오버레이 */
+  .workspace {
+    border: 0.5px solid var(--color-border-tertiary);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
+    overflow: hidden;
+    display: none;
+    position: relative;
+  }
+
+  .ws-drop-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: var(--color-background-info);
+    border: 2px dashed #378ADD;
+    border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--color-text-info);
+    pointer-events: none;
+  }
+
+  .ws-drop-overlay i {
+    font-size: 36px;
+  }
+
+  .ws-drop-overlay p {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .ws-drop-overlay.active {
+    display: flex;
+  }
+
+  .doc-section {
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+
+  .doc-section:last-child {
+    border-bottom: none;
+  }
+
+  .doc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    background: var(--color-background-secondary);
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+
+  .doc-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .doc-info {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+
+  .pages-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    padding: 14px 10px;
+    background: var(--color-background-primary);
+    min-height: 150px;
+    align-items: flex-start;
+  }
+
+  .page-slot {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  .drop-indicator {
+    width: 3px;
+    height: 128px;
+    border-radius: 2px;
+    background: transparent;
+    margin: 0 3px;
+    flex-shrink: 0;
+    transition: background 0.1s;
+    pointer-events: none;
+  }
+
+  .drop-indicator.active {
+    background: #378ADD;
+  }
+
+  .page-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: grab;
+    user-select: none;
+    padding: 4px;
+    border-radius: var(--border-radius-md);
+    transition: opacity 0.15s;
+  }
+
+  .page-card.is-dragging {
+    opacity: 0.25;
+  }
+
+  .page-card:active {
+    cursor: grabbing;
+  }
+
+  .page-thumb {
+    width: 88px;
+    height: 118px;
+    border-radius: 4px;
+    border: 0.5px solid var(--color-border-secondary);
+    background: #fff;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .page-card.selected .page-thumb {
+    border: 2px solid #378ADD;
+  }
+
+  .page-card:hover .page-thumb {
+    border-color: var(--color-border-primary);
+  }
+
+  .page-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .page-check {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-border-secondary);
+    background: var(--color-background-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: transparent;
+    transition: all 0.12s;
+  }
+
+  .page-card.selected .page-check {
+    background: #378ADD;
+    border-color: #378ADD;
+    color: white;
+  }
+
+  .page-del-btn {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: #E24B4A;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+    z-index: 2;
+    border: none;
+  }
+
+  .page-card:hover .page-del-btn {
+    display: flex;
+  }
+
+  .page-label {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+  }
+
+  .status-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    background: var(--color-background-secondary);
+    border-top: 0.5px solid var(--color-border-tertiary);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+
+  .sel-badge {
+    background: var(--color-background-info);
+    color: var(--color-text-info);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(50px);
+    background: var(--color-text-primary);
+    color: var(--color-background-primary);
+    padding: 7px 16px;
+    border-radius: var(--border-radius-md);
+    font-size: 13px;
+    transition: transform 0.22s;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .ghost-card {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9998;
+    opacity: 0.85;
+    transform: rotate(2deg) scale(1.05);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .ghost-thumb {
+    width: 72px;
+    height: 96px;
+    border-radius: 4px;
+    border: 2px solid #378ADD;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  }
+
+  .ghost-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  canvas {
+    display: none;
+  }
+
+  input[type=file] {
+    display: none;
+  }
+</style>
+
+<h2 class="sr-only">PDF 페이지 편집기 — PDF를 업로드하고 마우스로 페이지를 드래그해 순서를 바꾸세요.</h2>
+
+<div class="app">
+  <div class="toolbar">
+    <div class="toolbar-title">
+      <i class="ti ti-file-type-pdf" aria-hidden="true" style="font-size:17px;color:#E24B4A;"></i>
+      PDF 에디터
+    </div>
+    <div class="toolbar-sep"></div>
+    <button class="btn" onclick="triggerUpload()"><i class="ti ti-plus" aria-hidden="true"></i> PDF 추가</button>
+    <button class="btn danger" id="btn-del" disabled onclick="deleteSelected()"><i class="ti ti-trash"
+        aria-hidden="true"></i> 선택 삭제</button>
+    <button class="btn" id="btn-rot" disabled onclick="rotateSelected()"><i class="ti ti-rotate-clockwise"
+        aria-hidden="true"></i> 회전</button>
+    <div class="toolbar-sep"></div>
+    <button class="btn" id="btn-all" disabled onclick="selectAll()"><i class="ti ti-select-all" aria-hidden="true"></i>
+      전체 선택</button>
+    <button class="btn" onclick="clearSel()"><i class="ti ti-deselect" aria-hidden="true"></i> 해제</button>
+    <div class="toolbar-sep"></div>
+    <button class="btn primary" id="btn-export" disabled onclick="exportPDF()"><i class="ti ti-download"
+        aria-hidden="true"></i> 내보내기</button>
+  </div>
+
+  <div id="upload-zone" class="upload-zone" ondragover="onZoneDragOver(event)" ondragleave="onZoneDragLeave(event)"
+    ondrop="onZoneDrop(event)" onclick="triggerUpload()">
+    <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+    <p>PDF 파일을 드롭하거나 클릭해서 업로드하세요</p>
+    <small>여러 파일을 동시에 올리면 자동으로 병합됩니다</small>
+  </div>
+
+  <div id="workspace" class="workspace">
+    <div class="ws-drop-overlay" id="ws-overlay">
+      <i class="ti ti-file-plus" aria-hidden="true"></i>
+      <p>PDF 파일을 놓아서 추가하세요</p>
+    </div>
+  </div>
+  <div id="status-bar" class="status-bar">
+    <i class="ti ti-hand-finger" aria-hidden="true"></i>
+    <span id="status-txt">페이지를 드래그해서 순서를 변경하세요</span>
+    <span id="sel-badge" class="sel-badge" style="display:none"></span>
+  </div>
+</div>
+
+<div class="ghost-card" id="ghost">
+  <div class="ghost-thumb"><img id="ghost-img" src="" alt=""></div>
+</div>
+<div class="toast" id="toast"></div>
+<canvas id="offscreen"></canvas>
+<input type="file" id="file-input" accept=".pdf" multiple onchange="handleFiles(this.files)">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  let docs = [], selected = new Set(), dId = 1, pId = 1, drag = null, srcDocMap = {};
+
+  // 파일 드래그 vs 페이지 드래그 구분용
+  let fileDragActive = false, fileDragCounter = 0;
+
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2200);
+  }
+  function triggerUpload() { document.getElementById('file-input').click(); }
+
+  // ── 초기 업로드 존 (문서 없을 때) ──
+  function onZoneDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+  function onZoneDragLeave() { document.getElementById('upload-zone').classList.remove('drag-over'); }
+  function onZoneDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+    const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+    if (files.length) handleFiles(files);
+  }
+
+  // ── 워크스페이스 드롭 (문서 있을 때 파일 추가) ──
+  // dragenter/dragleave는 자식 요소 이동 시 중복 발생하므로 카운터로 처리
+  function setupWorkspaceDrop() {
+    const ws = document.getElementById('workspace');
+    const overlay = document.getElementById('ws-overlay');
+
+    ws.addEventListener('dragenter', e => {
+      // 페이지 드래그 중이면 무시
+      if (drag) return;
+      // PDF 파일인지 확인
+      if (![...e.dataTransfer.types].includes('Files')) return;
+      e.preventDefault();
+      fileDragCounter++;
+      fileDragActive = true;
+      overlay.classList.add('active');
+    });
+
+    ws.addEventListener('dragover', e => {
+      if (drag || !fileDragActive) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    ws.addEventListener('dragleave', e => {
+      if (drag) return;
+      fileDragCounter--;
+      if (fileDragCounter <= 0) {
+        fileDragCounter = 0;
+        fileDragActive = false;
+        overlay.classList.remove('active');
+      }
+    });
+
+    ws.addEventListener('drop', e => {
+      if (drag) return; // 페이지 드래그면 무시
+      fileDragCounter = 0;
+      fileDragActive = false;
+      overlay.classList.remove('active');
+
+      const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+      if (!files.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleFiles(files);
+    });
+  }
+
+  async function handleFiles(files) {
+    for (const f of [...files]) {
+      if (f.type !== 'application/pdf') continue;
+      toast(`"${f.name}" 로딩 중...`);
+      await loadDoc(f);
+    }
+    render();
+  }
+
+  async function loadDoc(file) {
+    const buf = await file.arrayBuffer();
+    const srcDocId = dId++;
+    srcDocMap[srcDocId] = buf.slice();
+    const pdf = await pdfjsLib.getDocument({ data: buf.slice() }).promise;
+    const doc = { id: srcDocId, name: file.name, pdf, pages: [] };
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const pdfPage = await pdf.getPage(i);
+      doc.pages.push({ id: pId++, currentDocId: srcDocId, srcDocId, srcPageNum: i, thumb: await makeThumb(pdfPage, 0), pdfPage, rot: 0 });
+    }
+    docs.push(doc);
+    toast(`"${file.name}" ${pdf.numPages}페이지 로드 완료`);
+  }
+
+  async function makeThumb(pdfPage, rot) {
+    const c = document.getElementById('offscreen');
+    const vp = pdfPage.getViewport({ scale: 0.32, rotation: rot });
+    c.width = vp.width; c.height = vp.height;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
+    return c.toDataURL('image/jpeg', 0.7);
+  }
+
+  function allPages() { return docs.flatMap(d => d.pages); }
+
+  function render() {
+    const ws = document.getElementById('workspace');
+    const uz = document.getElementById('upload-zone');
+    const sb = document.getElementById('status-bar');
+    const has = docs.length > 0;
+
+    uz.style.display = has ? 'none' : 'flex';
+    ws.style.display = has ? 'block' : 'none';
+    sb.style.display = has ? 'flex' : 'none';
+
+    if (!has) { updateBtns(); return; }
+
+    // 오버레이는 유지, 나머지 섹션만 교체
+    const overlay = document.getElementById('ws-overlay');
+    ws.innerHTML = '';
+    ws.appendChild(overlay);
+
+    docs.forEach(doc => {
+      const sec = document.createElement('div');
+      sec.className = 'doc-section';
+      const hdr = document.createElement('div');
+      hdr.className = 'doc-header';
+      hdr.innerHTML = `
+      <i class="ti ti-file-type-pdf" aria-hidden="true" style="color:#E24B4A;font-size:15px;flex-shrink:0;"></i>
+      <span class="doc-name">${esc(doc.name)}</span>
+      <span class="doc-info">${doc.pages.length}페이지</span>
+      <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="removeDoc(${doc.id})">
+        <i class="ti ti-x" aria-hidden="true"></i> 제거
+      </button>
+    `;
+      sec.appendChild(hdr);
+
+      const grid = document.createElement('div');
+      grid.className = 'pages-grid';
+      doc.pages.forEach((pg, idx) => grid.appendChild(makeSlot(pg, doc.id, idx)));
+      const lastSlot = document.createElement('div');
+      lastSlot.className = 'page-slot';
+      const lastInd = document.createElement('div');
+      lastInd.className = 'drop-indicator';
+      lastInd.dataset.docId = doc.id;
+      lastInd.dataset.insertIdx = doc.pages.length;
+      lastSlot.appendChild(lastInd);
+      grid.appendChild(lastSlot);
+      sec.appendChild(grid);
+      ws.appendChild(sec);
+    });
+
+    updateBtns();
+  }
+
+  function makeSlot(pg, docId, idx) {
+    const slot = document.createElement('div');
+    slot.className = 'page-slot';
+
+    const ind = document.createElement('div');
+    ind.className = 'drop-indicator';
+    ind.dataset.docId = docId;
+    ind.dataset.insertIdx = idx;
+    slot.appendChild(ind);
+
+    const card = document.createElement('div');
+    card.className = 'page-card' + (selected.has(pg.id) ? ' selected' : '');
+
+    const thumb = document.createElement('div');
+    thumb.className = 'page-thumb';
+    const img = document.createElement('img');
+    img.className = 'page-img'; img.src = pg.thumb; img.alt = `p.${idx + 1}`; img.draggable = false;
+    const chk = document.createElement('div');
+    chk.className = 'page-check';
+    chk.innerHTML = '<i class="ti ti-check" aria-hidden="true"></i>';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'page-del-btn';
+    delBtn.innerHTML = '<i class="ti ti-x" aria-hidden="true"></i>';
+    delBtn.addEventListener('mousedown', e => e.stopPropagation());
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deletePage(pg.id); });
+    thumb.appendChild(img); thumb.appendChild(chk); thumb.appendChild(delBtn);
+
+    const label = document.createElement('div');
+    label.className = 'page-label';
+    label.textContent = `p.${idx + 1}`;
+
+    card.appendChild(thumb); card.appendChild(label);
+
+    card.addEventListener('click', e => {
+      if (drag && drag.moved) return;
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        selected.has(pg.id) ? selected.delete(pg.id) : selected.add(pg.id);
+      } else {
+        if (selected.has(pg.id) && selected.size === 1) selected.clear();
+        else { selected.clear(); selected.add(pg.id); }
+      }
+      render();
+    });
+
+    card.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const startX = e.clientX, startY = e.clientY;
+      drag = { pageId: pg.id, docId, moved: false, card };
+
+      const onMove = ev => {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (!drag.moved && Math.sqrt(dx * dx + dy * dy) < 5) return;
+        drag.moved = true;
+        const ghost = document.getElementById('ghost');
+        ghost.style.display = 'flex';
+        ghost.style.left = (ev.clientX - 36) + 'px';
+        ghost.style.top = (ev.clientY - 50) + 'px';
+        document.getElementById('ghost-img').src = pg.thumb;
+        card.classList.add('is-dragging');
+        document.querySelectorAll('.drop-indicator').forEach(ind => {
+          const r = ind.getBoundingClientRect();
+          const dist = Math.sqrt((ev.clientX - (r.left + r.width / 2)) ** 2 + (ev.clientY - (r.top + r.height / 2)) ** 2);
+          ind.classList.toggle('active', dist < 60);
+        });
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.getElementById('ghost').style.display = 'none';
+        card.classList.remove('is-dragging');
+        if (drag && drag.moved) {
+          const active = document.querySelector('.drop-indicator.active');
+          if (active) doMove(pg.id, docId, parseInt(active.dataset.docId), parseInt(active.dataset.insertIdx));
+          document.querySelectorAll('.drop-indicator.active').forEach(el => el.classList.remove('active'));
+        }
+        drag = null;
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    slot.appendChild(card);
+    return slot;
+  }
+
+  function doMove(pageId, fromDocId, toDocId, toIdx) {
+    const fromDoc = docs.find(d => d.id === fromDocId);
+    const toDoc = docs.find(d => d.id === toDocId);
+    if (!fromDoc || !toDoc) return;
+    const fromIdx = fromDoc.pages.findIndex(p => p.id === pageId);
+    if (fromIdx === -1) return;
+    const [pg] = fromDoc.pages.splice(fromIdx, 1);
+    pg.currentDocId = toDocId;
+    let insertAt = toIdx;
+    if (fromDocId === toDocId && fromIdx < toIdx) insertAt = toIdx - 1;
+    insertAt = Math.max(0, Math.min(insertAt, toDoc.pages.length));
+    toDoc.pages.splice(insertAt, 0, pg);
+    selected.clear(); render(); toast('페이지 이동 완료');
+  }
+
+  function deletePage(pageId) {
+    for (const doc of docs) {
+      const i = doc.pages.findIndex(p => p.id === pageId);
+      if (i !== -1) { doc.pages.splice(i, 1); selected.delete(pageId); break; }
+    }
+    render(); toast('페이지 삭제됨');
+  }
+
+  function deleteSelected() {
+    const n = selected.size;
+    docs.forEach(d => { d.pages = d.pages.filter(p => !selected.has(p.id)); });
+    selected.clear(); render(); toast(`${n}페이지 삭제됨`);
+  }
+
+  async function rotateSelected() {
+    for (const doc of docs) {
+      for (const pg of doc.pages) {
+        if (!selected.has(pg.id)) continue;
+        pg.rot = (pg.rot + 90) % 360;
+        pg.thumb = await makeThumb(pg.pdfPage, pg.rot);
+      }
+    }
+    render(); toast('회전 완료');
+  }
+
+  function selectAll() { allPages().forEach(p => selected.add(p.id)); render(); }
+  function clearSel() { selected.clear(); render(); }
+  function removeDoc(docId) { docs = docs.filter(d => d.id !== docId); selected.clear(); render(); }
+
+  function updateBtns() {
+    const hasPg = allPages().length > 0, hasSel = selected.size > 0;
+    document.getElementById('btn-del').disabled = !hasSel;
+    document.getElementById('btn-rot').disabled = !hasSel;
+    document.getElementById('btn-all').disabled = !hasPg;
+    document.getElementById('btn-export').disabled = !hasPg;
+    const badge = document.getElementById('sel-badge');
+    badge.style.display = hasSel ? 'inline' : 'none';
+    if (hasSel) badge.textContent = `${selected.size}페이지 선택됨`;
+    document.getElementById('status-txt').textContent = `총 ${docs.length}개 문서 · ${allPages().length}페이지`;
+  }
+
+  async function exportPDF() {
+    const pages = allPages();
+    if (!pages.length) return;
+    toast('PDF 생성 중...');
+    try {
+      const { PDFDocument, degrees } = PDFLib;
+      const out = await PDFDocument.create();
+      const loadedSrcDocs = {};
+      for (const pg of pages) {
+        if (!loadedSrcDocs[pg.srcDocId]) loadedSrcDocs[pg.srcDocId] = await PDFDocument.load(srcDocMap[pg.srcDocId]);
+      }
+      for (const pg of pages) {
+        const [copied] = await out.copyPages(loadedSrcDocs[pg.srcDocId], [pg.srcPageNum - 1]);
+        if (pg.rot) copied.setRotation(degrees(pg.rot));
+        out.addPage(copied);
+      }
+      const bytes = await out.save();
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      Object.assign(document.createElement('a'), { href: url, download: 'merged.pdf' }).click();
+      URL.revokeObjectURL(url);
+      toast(`내보내기 완료 (${pages.length}페이지)`);
+    } catch (err) { toast('오류: ' + err.message); console.error(err); }
+  }
+
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  setupWorkspaceDrop();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
