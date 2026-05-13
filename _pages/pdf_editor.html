@@ -4,7 +4,6 @@ title: PDF 페이지 편집기
 permalink: /pdf-editor/
 ---
 
-
 <style>
   * {
     box-sizing: border-box;
@@ -96,6 +95,16 @@ permalink: /pdf-editor/
     pointer-events: none;
   }
 
+  .btn.pw-active {
+    color: #D97706;
+    border-color: #D97706;
+    background: #FEF3C7;
+  }
+
+  .btn.pw-active:hover {
+    background: #FDE68A;
+  }
+
   .upload-zone {
     flex: 1;
     display: flex;
@@ -132,7 +141,6 @@ permalink: /pdf-editor/
     opacity: 0.55;
   }
 
-  /* 워크스페이스 드롭 오버레이 */
   .workspace {
     border: 0.5px solid var(--color-border-tertiary);
     border-top: none;
@@ -406,6 +414,139 @@ permalink: /pdf-editor/
   input[type=file] {
     display: none;
   }
+
+
+  /* 암호 설정 모달 */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal {
+    background: var(--color-background-primary, #ffffff);
+    /* CSS 변수가 없는 환경(다크모드 등)에서도 불투명 배경 보장 */
+    isolation: isolate;
+    border: 0.5px solid var(--color-border-secondary, #e0e0e0);
+    border-radius: var(--border-radius-lg, 10px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .modal-header i {
+    color: #D97706;
+    font-size: 16px;
+  }
+
+  .modal-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font-size: 16px;
+    display: flex;
+    padding: 2px;
+    border-radius: 4px;
+  }
+
+  .modal-close:hover {
+    color: var(--color-text-primary);
+  }
+
+  .modal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: inherit;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+    border-top: 0.5px solid var(--color-border-tertiary);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .pw-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .pw-field {
+    position: relative;
+  }
+
+  .pw-field input {
+    width: 100%;
+    padding: 7px 34px 7px 10px;
+    font-size: 13px;
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-md);
+    background: var(--color-background-secondary);
+    color: var(--color-text-primary);
+    outline: none;
+  }
+
+  .pw-field input:focus {
+    border-color: #378ADD;
+  }
+
+  .pw-eye {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    display: flex;
+    padding: 2px;
+  }
+
+  .pw-eye:hover {
+    color: var(--color-text-primary);
+  }
+
+  .pw-mismatch {
+    font-size: 11px;
+    color: #E24B4A;
+    display: none;
+  }
+
+  .pw-hint {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+  }
 </style>
 
 <h2 class="sr-only">PDF 페이지 편집기 — PDF를 업로드하고 마우스로 페이지를 드래그해 순서를 바꾸세요.</h2>
@@ -427,6 +568,8 @@ permalink: /pdf-editor/
       전체 선택</button>
     <button class="btn" onclick="clearSel()"><i class="ti ti-deselect" aria-hidden="true"></i> 해제</button>
     <div class="toolbar-sep"></div>
+    <button class="btn" id="btn-pw" onclick="openPasswordModal()"><i class="ti ti-lock" aria-hidden="true"></i> 암호
+      설정</button>
     <button class="btn primary" id="btn-export" disabled onclick="exportPDF()"><i class="ti ti-download"
         aria-hidden="true"></i> 내보내기</button>
   </div>
@@ -451,6 +594,44 @@ permalink: /pdf-editor/
   </div>
 </div>
 
+<!-- 암호 설정 모달 -->
+<div class="modal-backdrop" id="pw-modal" onclick="onBackdropClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <i class="ti ti-lock" aria-hidden="true"></i>
+      PDF 암호 설정
+      <button class="modal-close" onclick="closePasswordModal()"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="pw-fields">
+        <div class="pw-field">
+          <input type="password" id="user-pw" placeholder="암호 입력"
+            oninput="document.getElementById('pw-mismatch').style.display='none'">
+          <button class="pw-eye" type="button" onclick="toggleEye('user-pw', this)"><i class="ti ti-eye"
+              aria-hidden="true"></i></button>
+        </div>
+        <div class="pw-field">
+          <input type="password" id="user-pw2" placeholder="암호 확인"
+            oninput="document.getElementById('pw-mismatch').style.display='none'">
+          <button class="pw-eye" type="button" onclick="toggleEye('user-pw2', this)"><i class="ti ti-eye"
+              aria-hidden="true"></i></button>
+        </div>
+      </div>
+      <div class="pw-mismatch" id="pw-mismatch">암호가 일치하지 않습니다.</div>
+      <div class="pw-hint">PDF를 열 때 이 암호를 입력해야 합니다.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" id="btn-pw-clear" onclick="clearPasswordSettings()"
+        style="margin-right:auto;display:none">
+        <i class="ti ti-lock-open" aria-hidden="true"></i> 암호 제거
+      </button>
+      <button class="btn" onclick="closePasswordModal()">취소</button>
+      <button class="btn primary" onclick="applyPasswordSettings()"><i class="ti ti-check" aria-hidden="true"></i>
+        적용</button>
+    </div>
+  </div>
+</div>
+
 <div class="ghost-card" id="ghost">
   <div class="ghost-thumb"><img id="ghost-img" src="" alt=""></div>
 </div>
@@ -460,12 +641,167 @@ permalink: /pdf-editor/
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+  // ── PDF RC4-128 암호화 (Standard Security Handler, Revision 3) ─────────────
+  const _PAD = new Uint8Array([
+    0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41,
+    0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01, 0x08,
+    0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68, 0x3E, 0x80,
+    0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A
+  ]);
+  function _md5(data) {
+    const r = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
+    const K = new Int32Array(64);
+    for (let i = 0; i < 64; i++) K[i] = (Math.abs(Math.sin(i + 1)) * 0x100000000) | 0;
+    const msgLen = data.length, padLen = ((55 - msgLen) % 64 + 64) % 64 + 9;
+    const padded = new Uint8Array(msgLen + padLen);
+    padded.set(data); padded[msgLen] = 0x80;
+    const dv = new DataView(padded.buffer);
+    dv.setUint32(padded.length - 8, (msgLen * 8) >>> 0, true);
+    dv.setUint32(padded.length - 4, Math.floor(msgLen / 0x20000000), true);
+    let a = 0x67452301, b = 0xEFCDAB89, c = 0x98BADCFE, d = 0x10325476;
+    for (let i = 0; i < padded.length; i += 64) {
+      const M = new Int32Array(16);
+      for (let j = 0; j < 16; j++) M[j] = dv.getInt32(i + j * 4, true);
+      let A = a, B = b, C = c, D = d;
+      for (let j = 0; j < 64; j++) {
+        let F, g;
+        if (j < 16) { F = (B & C) | (~B & D); g = j; } else if (j < 32) { F = (D & B) | (~D & C); g = (5 * j + 1) % 16; }
+        else if (j < 48) { F = B ^ C ^ D; g = (3 * j + 5) % 16; } else { F = C ^ (B | ~D); g = (7 * j) % 16; }
+        F = (F + A + K[j] + M[g]) | 0; A = D; D = C; C = B;
+        B = (B + ((F << r[j]) | (F >>> (32 - r[j])))) | 0;
+      }
+      a = (a + A) | 0; b = (b + B) | 0; c = (c + C) | 0; d = (d + D) | 0;
+    }
+    const out = new Uint8Array(16), ov = new DataView(out.buffer);
+    ov.setInt32(0, a, true); ov.setInt32(4, b, true); ov.setInt32(8, c, true); ov.setInt32(12, d, true);
+    return out;
+  }
+  function _rc4(key, data) {
+    const S = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) S[i] = i;
+    let j = 0;
+    for (let i = 0; i < 256; i++) { j = (j + S[i] + key[i % key.length]) & 255;[S[i], S[j]] = [S[j], S[i]]; }
+    const out = new Uint8Array(data.length);
+    let x = 0, y = 0;
+    for (let i = 0; i < data.length; i++) {
+      x = (x + 1) & 255; y = (y + S[x]) & 255;[S[x], S[y]] = [S[y], S[x]];
+      out[i] = data[i] ^ S[(S[x] + S[y]) & 255];
+    }
+    return out;
+  }
+  function _padPw(pw) {
+    const b = typeof pw === 'string' ? new TextEncoder().encode(pw) : (pw || new Uint8Array(0));
+    const out = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) out[i] = i < b.length ? b[i] : _PAD[i - b.length];
+    return out;
+  }
+  function _computeO(userPw, ownerPw) {
+    let h = _md5(_padPw(ownerPw || userPw));
+    for (let i = 0; i < 50; i++) h = _md5(h);
+    const key = h.slice(0, 16);
+    let v = _rc4(key, _padPw(userPw));
+    for (let i = 1; i <= 19; i++) v = _rc4(key.map(b => b ^ i), v);
+    return v;
+  }
+  function _computeKey(userPw, O, permsInt, fileId) {
+    const d = new Uint8Array(68 + fileId.length);
+    d.set(_padPw(userPw), 0); d.set(O, 32);
+    d[64] = permsInt & 0xFF; d[65] = (permsInt >> 8) & 0xFF; d[66] = (permsInt >> 16) & 0xFF; d[67] = (permsInt >> 24) & 0xFF;
+    d.set(fileId, 68);
+    let h = _md5(d);
+    for (let i = 0; i < 50; i++) h = _md5(h);
+    return h.slice(0, 16);
+  }
+  function _computeU(encKey, fileId) {
+    const d = new Uint8Array(32 + fileId.length);
+    d.set(_PAD, 0); d.set(fileId, 32);
+    let v = _rc4(encKey, _md5(d));
+    for (let i = 1; i <= 19; i++) v = _rc4(encKey.map(b => b ^ i), v);
+    const out = new Uint8Array(32); out.set(v); return out;
+  }
+  function _objKey(encKey, objNum, genNum) {
+    const d = new Uint8Array(encKey.length + 5);
+    d.set(encKey, 0);
+    d[encKey.length] = objNum & 0xFF; d[encKey.length + 1] = (objNum >> 8) & 0xFF; d[encKey.length + 2] = (objNum >> 16) & 0xFF;
+    d[encKey.length + 3] = genNum & 0xFF; d[encKey.length + 4] = (genNum >> 8) & 0xFF;
+    return _md5(d).slice(0, Math.min(encKey.length + 5, 16));
+  }
+  function _permBits(opts) {
+    let p = 0xFFFFF0C0 | 0;
+    if (opts.printing) p |= 0x804;
+    if (opts.modifying) p |= 0x008;
+    if (opts.copying) p |= 0x010;
+    if (opts.annotating) p |= 0x120;
+    return (p | 0x200) | 0;
+  }
+  function _toHex(b) { return Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); }
+  function encryptPDF(pdfBytes, userPassword, ownerPassword, permissions) {
+    const enc = new TextEncoder(), dec = new TextDecoder('latin1');
+    const raw = dec.decode(pdfBytes), bytes = new Uint8Array(pdfBytes);
+    const xrefPos = raw.lastIndexOf('\nxref');
+    if (xrefPos === -1) throw new Error('PDF xref not found');
+    const sxMatch = raw.match(/startxref\s+(\d+)\s+%%EOF/);
+    if (!sxMatch) throw new Error('startxref not found');
+    const origStartxref = parseInt(sxMatch[1]);
+    const trailerMatch = raw.match(/trailer\s*<<([\s\S]*?)>>/);
+    if (!trailerMatch) throw new Error('trailer not found');
+    const origTrailer = trailerMatch[1];
+    const rootMatch = origTrailer.match(/\/Root\s+(\d+\s+\d+\s+R)/);
+    const infoMatch = origTrailer.match(/\/Info\s+(\d+\s+\d+\s+R)/);
+    const sizeMatch = origTrailer.match(/\/Size\s+(\d+)/);
+    if (!rootMatch || !sizeMatch) throw new Error('trailer /Root or /Size missing');
+    const origSize = parseInt(sizeMatch[1]);
+    const xrefStr = raw.slice(xrefPos + 1), xrefLines = xrefStr.split('\n');
+    let li = 0;
+    if (xrefLines[li].trim() === 'xref') li++;
+    const hdr = xrefLines[li++].trim().split(/\s+/), nObjs = parseInt(hdr[1]), objs = [];
+    for (let i = 0; i < nObjs; i++) {
+      const parts = xrefLines[li++].trim().split(/\s+/);
+      const offset = parseInt(parts[0]), type = parts[2];
+      if (type === 'n' && offset > 0) objs.push({ num: i, offset });
+    }
+    const fileId = new Uint8Array(16); crypto.getRandomValues(fileId);
+    const permsInt = _permBits(permissions || {});
+    const O = _computeO(userPassword, ownerPassword);
+    const encKey = _computeKey(userPassword, O, permsInt, fileId);
+    const U = _computeU(encKey, fileId);
+    for (const obj of objs) {
+      const afterHeader = raw.indexOf('stream', obj.offset);
+      if (afterHeader === -1 || afterHeader > obj.offset + 2000) continue;
+      let streamStart = afterHeader + 6;
+      if (raw[streamStart] === '\r') streamStart++;
+      if (raw[streamStart] === '\n') streamStart++;
+      const endStream = raw.indexOf('endstream', streamStart);
+      if (endStream === -1 || endStream <= streamStart) continue;
+      const nextObj = objs.find(o => o.offset > obj.offset);
+      if (nextObj && endStream > nextObj.offset) continue;
+      bytes.set(_rc4(_objKey(encKey, obj.num, 0), bytes.slice(streamStart, endStream)), streamStart);
+    }
+    const encObjNum = origSize;
+    const encObjBytes = enc.encode(`\n${encObjNum} 0 obj\n<< /Filter /Standard /V 2 /R 3 /Length 128\n/P ${permsInt}\n/O <${_toHex(O)}>\n/U <${_toHex(U)}>\n>>\nendobj\n`);
+    const encObjOffset = bytes.length;
+    const newXrefBytes = enc.encode(`xref\n${encObjNum} 1\n${encObjOffset.toString().padStart(10, '0')} 00000 n \n`);
+    let tp = `/Size ${encObjNum + 1}\n/Root ${rootMatch[1]}\n`;
+    if (infoMatch) tp += `/Info ${infoMatch[1]}\n`;
+    tp += `/Encrypt ${encObjNum} 0 R\n/ID [<${_toHex(fileId)}> <${_toHex(fileId)}>]\n/Prev ${origStartxref}\n`;
+    const trailerBytes = enc.encode(`trailer\n<<\n${tp}>>\nstartxref\n${encObjOffset + encObjBytes.length + newXrefBytes.length}\n%%EOF\n`);
+    const result = new Uint8Array(bytes.length + encObjBytes.length + newXrefBytes.length + trailerBytes.length);
+    let pos = 0;
+    result.set(bytes, pos); pos += bytes.length;
+    result.set(encObjBytes, pos); pos += encObjBytes.length;
+    result.set(newXrefBytes, pos); pos += newXrefBytes.length;
+    result.set(trailerBytes, pos);
+    return result;
+  }
+</script>
+<script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   let docs = [], selected = new Set(), dId = 1, pId = 1, drag = null, srcDocMap = {};
-
-  // 파일 드래그 vs 페이지 드래그 구분용
   let fileDragActive = false, fileDragCounter = 0;
+
+  // 암호 설정 상태
+  let pwSettings = null; // null = 미설정, 설정 시 암호 문자열
 
   function toast(msg) {
     const el = document.getElementById('toast');
@@ -474,7 +810,7 @@ permalink: /pdf-editor/
   }
   function triggerUpload() { document.getElementById('file-input').click(); }
 
-  // ── 초기 업로드 존 (문서 없을 때) ──
+  // ── 초기 업로드 존 ──
   function onZoneDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
   function onZoneDragLeave() { document.getElementById('upload-zone').classList.remove('drag-over'); }
   function onZoneDrop(e) {
@@ -484,16 +820,13 @@ permalink: /pdf-editor/
     if (files.length) handleFiles(files);
   }
 
-  // ── 워크스페이스 드롭 (문서 있을 때 파일 추가) ──
-  // dragenter/dragleave는 자식 요소 이동 시 중복 발생하므로 카운터로 처리
+  // ── 워크스페이스 드롭 ──
   function setupWorkspaceDrop() {
     const ws = document.getElementById('workspace');
     const overlay = document.getElementById('ws-overlay');
 
     ws.addEventListener('dragenter', e => {
-      // 페이지 드래그 중이면 무시
       if (drag) return;
-      // PDF 파일인지 확인
       if (![...e.dataTransfer.types].includes('Files')) return;
       e.preventDefault();
       fileDragCounter++;
@@ -518,11 +851,10 @@ permalink: /pdf-editor/
     });
 
     ws.addEventListener('drop', e => {
-      if (drag) return; // 페이지 드래그면 무시
+      if (drag) return;
       fileDragCounter = 0;
       fileDragActive = false;
       overlay.classList.remove('active');
-
       const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
       if (!files.length) return;
       e.preventDefault();
@@ -578,7 +910,6 @@ permalink: /pdf-editor/
 
     if (!has) { updateBtns(); return; }
 
-    // 오버레이는 유지, 나머지 섹션만 교체
     const overlay = document.getElementById('ws-overlay');
     ws.innerHTML = '';
     ws.appendChild(overlay);
@@ -758,6 +1089,67 @@ permalink: /pdf-editor/
     badge.style.display = hasSel ? 'inline' : 'none';
     if (hasSel) badge.textContent = `${selected.size}페이지 선택됨`;
     document.getElementById('status-txt').textContent = `총 ${docs.length}개 문서 · ${allPages().length}페이지`;
+    // 암호 설정 버튼 상태
+    const btnPw = document.getElementById('btn-pw');
+    if (pwSettings) {
+      btnPw.classList.add('pw-active');
+      btnPw.innerHTML = '<i class="ti ti-lock" aria-hidden="true"></i> 암호 설정됨';
+    } else {
+      btnPw.classList.remove('pw-active');
+      btnPw.innerHTML = '<i class="ti ti-lock" aria-hidden="true"></i> 암호 설정';
+    }
+  }
+
+  // ── 암호 설정 모달 ──
+  function openPasswordModal() {
+    document.getElementById('user-pw').value = pwSettings || '';
+    document.getElementById('user-pw2').value = pwSettings || '';
+    document.getElementById('pw-mismatch').style.display = 'none';
+    document.getElementById('btn-pw-clear').style.display = pwSettings ? 'flex' : 'none';
+    document.getElementById('pw-modal').classList.add('open');
+    document.getElementById('user-pw').focus();
+  }
+
+  function closePasswordModal() {
+    document.getElementById('pw-modal').classList.remove('open');
+  }
+
+  function onBackdropClick(e) {
+    if (e.target === document.getElementById('pw-modal')) closePasswordModal();
+  }
+
+  function toggleEye(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.querySelector('i').className = isHidden ? 'ti ti-eye-off' : 'ti ti-eye';
+  }
+
+  function applyPasswordSettings() {
+    const pw = document.getElementById('user-pw').value;
+    const pw2 = document.getElementById('user-pw2').value;
+    if (!pw) {
+      pwSettings = null;
+      closePasswordModal();
+      updateBtns();
+      toast('암호 설정이 해제되었습니다.');
+      return;
+    }
+    if (pw !== pw2) {
+      document.getElementById('pw-mismatch').style.display = 'block';
+      return;
+    }
+    pwSettings = pw;
+    closePasswordModal();
+    updateBtns();
+    toast('암호 설정 완료. 내보내기 시 암호가 적용됩니다.');
+  }
+
+  function clearPasswordSettings() {
+    pwSettings = null;
+    closePasswordModal();
+    updateBtns();
+    toast('암호 설정이 제거되었습니다.');
   }
 
   async function exportPDF() {
@@ -776,11 +1168,20 @@ permalink: /pdf-editor/
         if (pg.rot) copied.setRotation(degrees(pg.rot));
         out.addPage(copied);
       }
-      const bytes = await out.save();
+
+      // useObjectStreams: false 필수 — pdf_encrypt.js의 스트림 파서가 평문 xref를 필요로 함
+      let bytes = await out.save({ useObjectStreams: false });
+
+      if (pwSettings) {
+        bytes = encryptPDF(bytes, pwSettings, pwSettings, {
+          printing: true, modifying: true, copying: true, annotating: true
+        });
+      }
+
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       Object.assign(document.createElement('a'), { href: url, download: 'merged.pdf' }).click();
       URL.revokeObjectURL(url);
-      toast(`내보내기 완료 (${pages.length}페이지)`);
+      toast(`내보내기 완료 (${pages.length}페이지)${pwSettings ? ' · 암호 적용됨' : ''}`);
     } catch (err) { toast('오류: ' + err.message); console.error(err); }
   }
 
@@ -788,4 +1189,4 @@ permalink: /pdf-editor/
 
   setupWorkspaceDrop();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
